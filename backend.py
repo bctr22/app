@@ -16,7 +16,7 @@ def read_root():
 
 # API fetches all data (limited to 100 records to avoid overload)
 @app.get("/trips")
-def get_trips(limit: int = Query(100, description="Số lượng bản ghi trả về")):
+def get_trips(limit: int = Query(100, description="Number of records returned")):
     return df.head(limit).to_dict(orient="records")
 
 # API take trips by city
@@ -69,4 +69,29 @@ def trip_metrics():
         "average_distance": round(avg_distance, 2),
         "average_duration": round(avg_duration, 2),
         "revenue_per_hour": revenue_per_hour
+    }
+
+# API calculates fraud analysis by city, route, time, weather, and traffic
+@app.get("/trips/fraud-analysis")
+def fraud_analysis_by_factors():
+    fraud_df = df[df["fraud_flag"] == 1]
+    
+    # Most fraudulent route per city
+    most_fraud_routes = fraud_df.groupby(["city", "pickup_location"]).size().reset_index(name="fraud_count")
+    most_fraud_routes = most_fraud_routes.loc[most_fraud_routes.groupby("city")["fraud_count"].idxmax()]
+    
+    # Most fraudulent hour
+    fraud_by_hour = fraud_df.groupby(fraud_df["pickup_time"].str[11:13]).size().idxmax()
+    
+    # Most fraudulent weather condition
+    fraud_by_weather = fraud_df["weather"].mode()[0] if not fraud_df["weather"].isna().all() else "Unknown"
+    
+    # Most fraudulent traffic condition
+    fraud_by_traffic = fraud_df["traffic_condition"].mode()[0] if not fraud_df["traffic_condition"].isna().all() else "Unknown"
+    
+    return {
+        "most_fraud_routes": most_fraud_routes.to_dict(orient="records"),
+        "most_fraudulent_hour": fraud_by_hour,
+        "most_fraudulent_weather": fraud_by_weather,
+        "most_fraudulent_traffic": fraud_by_traffic
     }
